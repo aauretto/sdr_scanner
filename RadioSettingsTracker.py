@@ -1,5 +1,3 @@
-from matplotlib import pyplot as plt
-
 from rtlsdr import RtlSdr
 import scipy.signal as sp
 
@@ -10,7 +8,7 @@ class RadioSettingsTracker:
     def __init__(self, sdr, cf, spb, filtLock):
         self.sdr = sdr
 
-        self.cfStepArr  = [1e6, 1e5, 25e3]
+        self.cfStepArr  = [10e6, 1e6, 1e5, 25e3, 5e3]
         self.currCfStep = 0
         self.cf         = cf
 
@@ -24,7 +22,10 @@ class RadioSettingsTracker:
         print("cf = ", self.get_cf())
 
         # 51 tap 1D low-pass FIR filter that keeps ~150kHZ at 1MHz sample rate
-        self.filter = sp.firwin(51, 150000/2, fs=1000000)
+        self.filter = sp.firwin(51, 150e3/2, fs=1000000)
+        self.bw = 150e3
+        self.bwStepArr  = [50e3, 25e3, 5e3, 1e3]
+        self.currBwStep = 0
 
         self.filtLock = filtLock
 
@@ -45,7 +46,7 @@ class RadioSettingsTracker:
         return self.stopSignal
 
     def cycle_cf_step(self):
-        self.currCfStep = (self.currCfStep + 1) % 3
+        self.currCfStep = (self.currCfStep + 1) % len(self.cfStepArr)
 
     def get_cf_step(self):
         return self.cfStepArr[self.currCfStep]
@@ -72,30 +73,16 @@ class RadioSettingsTracker:
     def get_filter(self):
         with self.filtLock:
             return self.filter
+    
+    def get_bw(self):
+        return self.bw
+    
+    def get_bw_step(self):
+        return self.bwStepArr[self.currBwStep]
         
-    
-    
-def task(id, settings, numtaps):
-    
-    settings.set_filter(taps=numtaps, bw=150000, samprate=1000000)
-    print(f"ID {id}: set filter:({numtaps} taps)")
-    print(f"ID {id}: filter len: {len(settings.get_filter())}")
+    def nudge_bw(self, dir):
+        self.bw += self.bwStepArr[self.currBwStep] * dir
+        #self.set_filter(51, self.bw, 1e6)        
 
-# sdr = RtlSdr()
-
-# # initialize some locks we will use
-# cfLock = threading.Lock()
-# filterLock = threading.Lock()
-# myDude = RadioSettingsTracker(sdr, filterLock, cfLock)
-
-# for i in range(4):
-#     threading.Thread(target=task, args=(i, myDude, 51 + 10 * i)).start()
-
-
-# print(myDude.get_cf_step())
-# myDude.cycle_cf_step()
-# print(myDude.get_cf_step())
-# myDude.cycle_cf_step()
-# print(myDude.get_cf_step())
-# myDude.cycle_cf_step()
-# print(myDude.get_cf_step())
+    def cycle_bw_step(self):
+        self.currBwStep = (self.currBwStep + 1) % len(self.bwStepArr)   
