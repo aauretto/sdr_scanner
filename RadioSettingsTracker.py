@@ -69,6 +69,7 @@ class RadioSettingsTracker:
     def set_filter(self, taps, bw, samprate):
         with self.filtLock:
             self.filter = sp.firwin(taps, bw/2, fs=samprate)
+            print("filter changed")
 
     def get_filter(self):
         with self.filtLock:
@@ -82,7 +83,7 @@ class RadioSettingsTracker:
         
     def nudge_bw(self, dir):
         self.bw += self.bwStepArr[self.currBwStep] * dir
-        #self.set_filter(51, self.bw, 1e6)        
+        self.set_filter(51, self.bw, 1e6)        
 
     def cycle_bw_step(self):
         self.currBwStep = (self.currBwStep + 1) % len(self.bwStepArr)   

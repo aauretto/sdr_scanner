@@ -58,7 +58,7 @@ def main():
     
     lcd = LCD()
     
-    settings = RadioSettingsTracker(sdr, 88.3e6, 2**18, filtLock)
+    settings = RadioSettingsTracker(sdr, 98.5e6, 2**18, filtLock)
 
     lcd.text("%6.3f MHz" %(settings.get_cf()[1] / 1e6), 1)
     lcd.text("Step:%6.3f MHz" %(settings.get_cf_step() / 1e6), 2)

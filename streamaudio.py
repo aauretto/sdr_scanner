@@ -99,8 +99,8 @@ async def radio_handler(settings):
         async def extract_next(*args, **kwargs):
             global queue
             while(queue.qsize() < 1):
-               print("filling queue")
-               await asyncio.sleep(3)
+               # print("filling queue")
+               await asyncio.sleep(5)
             chunk = queue.get_nowait()
             return chunk
 
@@ -130,6 +130,7 @@ async def radio_handler(settings):
         if (settings.stop_called()):
             break
         queue.put_nowait(chunk.astype(np.float32))
+        # print("queue len: ", queue.qsize())
         
     audioStream.close() 
     loop.close() 
