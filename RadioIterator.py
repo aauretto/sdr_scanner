@@ -20,8 +20,6 @@ class RadioIterator():
  
     # return the next awaitable
     async def __anext__(self):
-        if (self.stopCalled):
-
         async for chunk in self.IQstream:
             if (sampsRxd ):
                 await self.sdr.cancel_read_async()
@@ -79,7 +77,6 @@ class RadioIterator():
 
     # converts some raw IQ data to an audio waveform at 96kHz
     async def IQ_to_audio(self, samples, filter): 
-        print("starting Processing...", end="")
         # apply filter to isolate just fm channel we want
         IQin = np.convolve(samples, filter, mode='same')
 
@@ -91,9 +88,4 @@ class RadioIterator():
         # we will also hammer down spikes that will add unneeded noise to our waveform
         audio = self.decimate_and_hammer(freqBuff, 96000, 1e6, 0.4)
 
-        # # convert to 16-bit data
-        # audio *= 32767 # / np.max(np.abs(audio))
-        # audio = audio.astype(np.int16)
-
-        print("done")
         return audio
