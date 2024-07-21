@@ -4,71 +4,73 @@ import asyncio
 from rtlsdr import RtlSdr
 import time
 
-def decimate(sig, to_rate, from_rate):
-
-    # total length of time the input takes
-    buffTime = len(sig) / from_rate
-    # timestamps of the samples we want to write to output
-    newTimes = np.linspace(0, buffTime, int(to_rate * buffTime), False)
+# Purpose: Clean up audio we get from demodulation step
+def hammer(sig, cap):
     # preallocate output array
-    newSig = np.empty(shape=(int(buffTime * to_rate)), dtype=np.float32)
+    newSig = np.empty(shape=sig.shape, dtype=np.float32)
 
-    # Iterate over signal. Only write sample closest to each timestamp in newTimes.
-    idx = 0
-    for t in newTimes:
-        fromIdx = round(t * from_rate)
-        [idx] = sig[fromIdx]
-
-    return newSig
-
-
-def decimate_and_hammer(sig, to_rate, from_rate, cap):
-
-    # total length of time the input takes
-    buffTime = len(sig) / from_rate
-    # timestamps of the samples we want to write to output
-    newTimes = np.linspace(0, buffTime, int(to_rate * buffTime), False)
-    # preallocate output array
-    newSig = np.empty(shape=(int(buffTime * to_rate)), dtype=np.float32)
-
-
-    # Iterate over signal. Only write sample closest to each timestamp in newTimes.
+    # Iterate over signal.
     # If we encounter a sample that has greater magnitude that cap, we find the
-    # most recent sample lower than cap and take that one instead.
+    # most recent sample lower than cap and set it to that value instead.
     # If we cannot find a sample lower than cap then we set this sample to cap.
     idx = 0
-    for t in newTimes:
-        fromIdx = round(t * from_rate)
-        while ((fromIdx > -1 * len(sig)) and abs(sig[fromIdx]) > cap):
-            fromIdx -= 1
-        if (fromIdx == -1 * len(sig)):
-            newSig[idx] = cap * np.sign(sig[fromIdx])
+    for s in sig:
+        runnerIdx = idx
+        while ((runnerIdx > -1 * len(sig)) and abs(sig[runnerIdx]) > cap):
+            runnerIdx -= 1
+        if (runnerIdx == -1 * len(sig)):
+            newSig[idx] = cap * np.sign(sig[runnerIdx])
         else:
-            newSig[idx] = sig[fromIdx]
+            newSig[idx] = sig[runnerIdx]
         idx += 1
+    return newSig
+
+# Purpose: Decimate signal sig down to rate toRate
+# Notes:   toRate and fromRate need not be integers 
+def nonint_decimate(sig, toRate, fromRate):
+    # total length of time the input takes
+    buffTime = sig.size / fromRate
+    # timestamps of the samples we want to write to output
+    newTimes = np.linspace(0, buffTime, int(toRate * buffTime), False)
+
+    # Make mask with trues at indicies we want to keep
+    idxs = np.round(newTimes * fromRate)
+
+    mask = np.full(sig.size, False)
+    for i in idxs:
+        mask[int(i)] = True
+
+    # Doesnt work (deadlock maybe?)
+    # mask = list(map(lambda x : x in idxs, mask))    
+
+    newSig = sig[mask]
 
     return newSig
 
-async def IQ_to_audio(samples, filter): 
-    # apply filter to isolate just fm channel we want
-    
-    IQin = np.convolve(samples, filter, mode='same')
 
+async def IQ_to_audio(samples, settings): 
+    # apply filter to isolate channel we want
+    filtIQ = np.convolve(samples, settings.get_filter(), mode='same')
     
-    # obtain the frequency at each point in time 
-    # (this is our decoded audio)
-    freqBuff = np.diff(np.arctan(IQin.imag / IQin.real))
+    # Decode based where we are tuned to
+    decodedChunk = settings.get_demod_func()(filtIQ)
 
+    # Decimation step so we can listen at correct sample rate
+    rawAudio = nonint_decimate(decodedChunk, 44100, settings.get_samp_rate()) 
     
-    
-    # freqBuff *= (1/max(abs(freqBuff)))
-    
+    procAudio = None
 
-    # decimation step so we can listen at correct sample rate
-    # we will also hammer down spikes that will add unneeded noise to our waveform
-    audio = decimate_and_hammer(freqBuff, 44100, 1e6, 0.9) 
+    # Hammer down spikes in recovered waveform
+    # Makes up for lower recovery rates by correcting values above cap
+    # to be near the values around them
+    if settings.doHammer:
+        procAudio = hammer(rawAudio, 0.9)
+    else: 
+        procAudio = rawAudio
     
-    return audio
+    ## Squelch at some point
+
+    return procAudio
 
 async def audioStreaming(settings):
 
@@ -79,8 +81,7 @@ async def audioStreaming(settings):
             print("Shutting down async stream")
             await sdr.stop()
             break
-        
-        yield await IQ_to_audio(samples, settings.get_filter())
+        yield await IQ_to_audio(samples, settings)
         
 global queue
 queue = asyncio.Queue()
@@ -99,8 +100,7 @@ async def radio_handler(settings):
         async def extract_next(*args, **kwargs):
             global queue
             while(queue.qsize() < 1):
-               # print("filling queue")
-               await asyncio.sleep(5)
+               await asyncio.sleep(1)
             chunk = queue.get_nowait()
             return chunk
 
@@ -121,9 +121,6 @@ async def radio_handler(settings):
                         )
 
     audioStream.start_stream()
-
-    print(f"latency {audioStream.get_input_latency()}", end = '\n\n\n')
-
 
 
     async for chunk in audioStreaming(settings):  
