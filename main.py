@@ -90,10 +90,13 @@ def main():
     lcd.clear()
     # Init Menu
     # Max title width:         |>_______________|
-    menu = [LCDMenuItem(title = "Freq. Tune", action = freq_tune_menu),
-            LCDMenuItem(title = "Bandwidth Adj.", action = bw_menu),
-            LCDMenuItem(title = "Demod Profile", action = demod_menu),
-            LCDMenuItem(title = "Audio Hammer", action = hammer_menu)]
+    menu = [
+            LCDMenuItem(title = "Freq Tune",      action = freq_tune_menu),
+            LCDMenuItem(title = "Set Bandwidth",  action = bw_menu),
+            LCDMenuItem(title = "Demod Profile",  action = demod_menu),
+            LCDMenuItem(title = "Set Hammer",     action = hammer_menu),
+            LCDMenuItem(title = "Set Squelch",    action = squelch_menu),
+            ]
 
     currItem = 0
     nextItem = 1
@@ -139,65 +142,6 @@ def main():
     except Exception as e:
         print(e)
         print(traceback.format_exc())
-    # clk = 17
-    # dt  = 18
-    # sw  = 27
-    
-    # clk2 = 11
-    # dt2  = 9
-    # sw2  = 10
-    
-    
-    # GPIO.setmode(GPIO.BCM)
-    # GPIO.setup(clk, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    # GPIO.setup(dt,  GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    # GPIO.setup(sw,  GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    
-    # GPIO.setup(clk2, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    # GPIO.setup(dt2,  GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    # GPIO.setup(sw2,  GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    
-    # lastSWstate = GPIO.input(sw)
-    # lastSWstate2 = GPIO.input(sw2)
-    
-    # turnDir  = 0
-    # try:
-    #     # main loop for checking sensors goes here
-    #     while (not settings.stop_called()):
-    #         time.sleep(0.01)
-    #         clkState = GPIO.input(clk)
-    #         dtState  = GPIO.input(dt)
-    #         swState  = GPIO.input(sw)
-    #         swState2  = GPIO.input(sw2)
-            
-    #         if swState == 0 and lastSWstate != 0:
-    #             settings.cycle_cf_step()
-    #             lastSWstate = 0
-    #             lcd.text("Step:%6.3f MHz" %(settings.get_cf_step() / 1e6), 2)
-    #         elif(swState == 1 and lastSWstate == 0):
-    #             lastSWstate = 1
-                    
-    #         if (clkState == 1 and dtState == 1):
-    #             if(turnDir):
-    #                 settings.nudge_cf(turnDir)
-    #                 turnDir = 0
-    #                 lcd.text("%6.3f MHz" %(settings.get_cf()[1] / 1e6), 1)
-    #         elif(not turnDir):
-    #             if (not clkState and dtState):
-    #                 turnDir = 1
-    #             elif(clkState and not dtState):
-    #                 turnDir = -1
-                  
-    #         # check for when we click the bw encoder
-    #         if swState2 == 0 and lastSWstate2 != 0:
-    #             change_bw(settings, clk2, dt2, sw2, sw, lcd)
-    #             lastSWstate = 0
-    #         elif(swState == 1 and lastSWstate == 0):
-    #             lastSWstate = 1
-    # except Exception as e:
-    #     print(e)
-    #     print(traceback.format_exc())
-    
     finally:        
         settings.call_stop()
         print("flag raaised")

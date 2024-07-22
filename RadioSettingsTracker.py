@@ -5,7 +5,7 @@ import numpy as np
 
 # Functions that define how we decode data.
 def decode_fm(iqData):
-    # obtain the frequency at each point in time 
+    # obtain the frequency at each point in time
     return np.diff(np.angle(iqData))
 
 def decode_am(iqData):
@@ -36,22 +36,32 @@ class RadioSettingsTracker:
         self.demodLock = demodLock
 
         # Default Filters
-        self.filtFMRadio = sp.firwin(51, 150e3/2, fs=self.sdr.sample_rate)
-        self.filtAMRadio = sp.firwin(51, 10e3/2, fs=self.sdr.sample_rate)
-        self.filtAIRCOM  = sp.firwin(51, 20e3/2, fs=self.sdr.sample_rate)
-
+        self.filtFMRadio   = sp.firwin(51, 150e3/2, fs=self.sdr.sample_rate)
+        self.filtAIRCOM    = sp.firwin(51, 20e3/2, fs=self.sdr.sample_rate)
+        self.filtWholeBand = np.ones(51)
+        
         # Demod order [fmrad, amrad, aircom, auto]
         self.currDemod = 3
 
         self.bw = 150e3
         self.bwStepArr  = [1e3, 5e3, 25e3, 50e3]
         self.currBwStep = 0
-        
+
         self.ordemodFunc = False
         self.demodFunc   = lambda x : np.abs(x)
         self.set_demod_profile()
 
-        self.doHammer = True
+        # Audio postprocessing Settings
+        self.doHammer = False
+        self.hammerCap = 0.9
+        self.hammerStepArr = [0.01, 0.05, 0.1, 0.25]
+        self.hammerIdx = 1
+
+
+        self.doSquelch = False
+        self.squelch  = 0
+        self.squelchStepArr = [0.01, 0.05, 0.1, 0.25]
+        self.squelchIdx = 1
 
         self.spb = spb
 
@@ -134,20 +144,14 @@ class RadioSettingsTracker:
             # AIRCOM/NAV
             elif (108.0e6 <= freq and freq <= 137.0e6):
                 self.demodFunc = decode_am
-                self.bw = 25e3
+                self.bw = 20e3
                 with self.filtLock:
                     self.filter = self.filtFMRadio      
-            # AM RADIO
-            elif (540.0e5 <= freq and freq <= 1700.0e5):
-                self.demodFunc = decode_am
-                self.bw = 10e3
-                with self.filtLock:
-                    self.filter = self.filtFMRadio
             
             else: # Band not in KB, Use AM
-                self.demodFunc = lambda x : np.abs(x)
-
-        print(f"Set Demod to: {self.demodFunc}")
+                self.demodFunc = decode_am
+                with self.filtLock:
+                    self.filter = self.filtWholeBand
 
     def reset_demod_profile(self):
         self.ordemodFunc = False
@@ -176,3 +180,21 @@ class RadioSettingsTracker:
 
     def cycle_bw_step(self):
         self.currBwStep = (self.currBwStep + 1) % len(self.bwStepArr)   
+
+    def nudge_squelch(self, dir):
+        newSquelch = self.squelch + self.squelchStepArr[self.squelchIdx] * dir
+        if (-6.2 <= newSquelch) and (newSquelch < 6.2):
+            self.squelch = newSquelch
+    def nudge_squelch_step(self, dir):
+        newSquelchIdx = self.squelchIdx + dir
+        if (0 <= newSquelchIdx and newSquelchIdx < len(self.squelchStepArr)):
+            self.squelchIdx = newSquelchIdx
+
+    def nudge_hammer(self, dir):
+        newHammer = self.hammerCap + self.hammerStepArr[self.hammerIdx] * dir
+        if (-6.2 <= newHammer) and (newHammer < 6.2):
+            self.hammerCap = newHammer
+    def nudge_hammer_step(self, dir):
+        newHammerIdx = self.hammerIdx + dir
+        if (0 <= newHammerIdx and newHammerIdx < len(self.hammerStepArr)):
+            self.hammerIdx = newHammerIdx

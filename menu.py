@@ -118,9 +118,6 @@ def bw_menu(lcd, settings, clk, dt, sw, clk2, dt2, sw2):
                 RturnDir = -1
 
 # Demodulation options
-def set_am_radio(settings):
-    settings.set_demod_profile(override = decode_am)
-    settings.set_filter_from_KB(settings.filtAMRadio)
 def set_fm_radio(settings):
     settings.set_demod_profile(override = decode_fm)
     settings.set_filter_from_KB(settings.filtFMRadio)
@@ -145,11 +142,9 @@ def demod_menu(lcd, settings, clk, dt, sw, clk2, dt2, sw2):
     lcd.clear()
 
     fmRadProf  = LCDMenuItem(title = "FM Radio", action = set_fm_radio)
-    amRadProf  = LCDMenuItem(title = "AM Radio", action = set_am_radio)
     aircomProf = LCDMenuItem(title = "AIRCOM",   action = set_aircom)
     autoProf   = LCDMenuItem(title = "AUTO",     action = set_auto)
     menu = [fmRadProf,
-            amRadProf,
             aircomProf, 
             autoProf]
 
@@ -199,47 +194,32 @@ def demod_menu(lcd, settings, clk, dt, sw, clk2, dt2, sw2):
             RlastSWstate = 1
         
 
-def print_hammer_menu(lcd, settings, selection):
-    s1 = "Yes"
-    s2 = "No"
-
-    print(f"Selection: {selection}")
-    print(f"Setting: {settings.doHammer}")
-
-    if (selection):
-        s1 = ">" + s1
-        s2 = " " + s2
+def print_hammer_menu(lcd, settings):  
+    s1 = "Hammer "
+    if settings.doHammer:
+        s1 = s1 + "[ON]"
     else:
-        s1 = " " + s1
-        s2 = ">" + s2
+        s1 = s1 + "[OFF]"
 
-    if (settings.doHammer):
-        s1 = s1 + "*"
-        s2 = s2 + " "
-    else:
-        s1 = s1 + " "
-        s2 = s2 + "*"
-
-    lcd.text(f" {s1}    {s2}", 2)
-
+    lcd.text(s1, 1)
+    lcd.text("Cap: %3.2f | %3.2f" %(settings.hammerCap, settings.hammerStepArr[settings.hammerIdx]), 2)
 
 def hammer_menu(lcd, settings, clk, dt, sw, clk2, dt2, sw2):
     lcd.clear()
-    lcd.text("Hammer Audio?", 1)
-    
+
+    print_hammer_menu(lcd, settings)    
     LlastSWstate = GPIO.input(sw)
-    RlastSWstate = GPIO.input(sw)
+    RturnDir = 0
     LturnDir = 0
+    RlastSWstate = GPIO.input(sw2)
 
-    selection = True
-
-    print_hammer_menu(lcd, settings, selection)
-    
     while True:
         time.sleep(0.01)
         LswState  = GPIO.input(sw)
         LclkState = GPIO.input(clk)
         LdtState  = GPIO.input(dt)
+        RclkState = GPIO.input(clk2)
+        RdtState  = GPIO.input(dt2)
         RswState  = GPIO.input(sw2)
 
         # Look for pushing in left rotary encoder, return on release
@@ -248,23 +228,104 @@ def hammer_menu(lcd, settings, clk, dt, sw, clk2, dt2, sw2):
             LlastSWstate = 0
         elif(LswState == 1 and LlastSWstate == 0):
             LlastSWstate = 1
-
+                
         # Check for turning left rotary encoder
         if (LclkState == 1 and LdtState == 1):
             if(LturnDir):
-                selection = not selection
-                print_hammer_menu(lcd, settings, selection)
-                LturnDir = 0    
+                settings.nudge_hammer(LturnDir)
+                LturnDir = 0
+                print_hammer_menu(lcd, settings)    
+                
         elif(not LturnDir):
             if (not LclkState and LdtState):
                 LturnDir = 1
             elif(LclkState and not LdtState):
                 LturnDir = -1
-                
-        # Look for pushing in right rotary encoder, write to settings on release
+        
+        # Look for pushing in right rotary encoder, toggle on release
         if RswState == 0 and RlastSWstate != 0:
-            settings.doHammer = selection
+            settings.doHammer = not settings.doHammer
+            print_hammer_menu(lcd, settings)
             RlastSWstate = 0
-            print_hammer_menu(lcd, settings, selection)
         elif(RswState == 1 and RlastSWstate == 0):
             RlastSWstate = 1
+        
+        # Check for turning right rotary encoder
+        if (RclkState == 1 and RdtState == 1):
+            if(RturnDir):
+                settings.nudge_hammer_step(RturnDir)
+                RturnDir = 0
+                print_hammer_menu(lcd, settings)
+        elif(not RturnDir):
+            if (not RclkState and RdtState):
+                RturnDir = 1
+            elif(RclkState and not RdtState):
+                RturnDir = -1
+
+def print_squelch_menu(lcd, settings):  
+    s1 = "Squelch "
+    if settings.doSquelch:
+        s1 = s1 + "[ON]"
+    else:
+        s1 = s1 + "[OFF]"
+
+    lcd.text(s1, 1)
+    lcd.text("Flr: %3.2f | %3.2f" %(settings.squelch, settings.squelchStepArr[settings.squelchIdx]), 2)
+
+def squelch_menu(lcd, settings, clk, dt, sw, clk2, dt2, sw2):
+    lcd.clear()
+
+    print_squelch_menu(lcd, settings)    
+    LlastSWstate = GPIO.input(sw)
+    RturnDir = 0
+    LturnDir = 0
+    RlastSWstate = GPIO.input(sw2)
+
+    while True:
+        time.sleep(0.01)
+        LswState  = GPIO.input(sw)
+        LclkState = GPIO.input(clk)
+        LdtState  = GPIO.input(dt)
+        RclkState = GPIO.input(clk2)
+        RdtState  = GPIO.input(dt2)
+        RswState  = GPIO.input(sw2)
+
+        # Look for pushing in left rotary encoder, return on release
+        if LswState == 0 and LlastSWstate != 0:
+            return
+            LlastSWstate = 0
+        elif(LswState == 1 and LlastSWstate == 0):
+            LlastSWstate = 1
+                
+        # Check for turning left rotary encoder
+        if (LclkState == 1 and LdtState == 1):
+            if(LturnDir):
+                settings.nudge_squelch(LturnDir)
+                LturnDir = 0
+                print_squelch_menu(lcd, settings)    
+                
+        elif(not LturnDir):
+            if (not LclkState and LdtState):
+                LturnDir = 1
+            elif(LclkState and not LdtState):
+                LturnDir = -1
+        
+        # Look for pushing in right rotary encoder, toggle on release
+        if RswState == 0 and RlastSWstate != 0:
+            settings.doSquelch = not settings.doSquelch
+            print_squelch_menu(lcd, settings)
+            RlastSWstate = 0
+        elif(RswState == 1 and RlastSWstate == 0):
+            RlastSWstate = 1
+
+        # Check for turning right rotary encoder
+        if (RclkState == 1 and RdtState == 1):
+            if(RturnDir):
+                settings.nudge_squelch_step(RturnDir)
+                RturnDir = 0
+                print_squelch_menu(lcd, settings)
+        elif(not RturnDir):
+            if (not RclkState and RdtState):
+                RturnDir = 1
+            elif(RclkState and not RdtState):
+                RturnDir = -1

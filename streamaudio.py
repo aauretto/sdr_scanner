@@ -19,6 +19,7 @@ def hammer(sig, cap):
         while ((runnerIdx > -1 * len(sig)) and abs(sig[runnerIdx]) > cap):
             runnerIdx -= 1
         if (runnerIdx == -1 * len(sig)):
+            print("Hammer got greedy")
             newSig[idx] = cap * np.sign(sig[runnerIdx])
         else:
             newSig[idx] = sig[runnerIdx]
@@ -40,13 +41,9 @@ def nonint_decimate(sig, toRate, fromRate):
     for i in idxs:
         mask[int(i)] = True
 
-    # Doesnt work (deadlock maybe?)
-    # mask = list(map(lambda x : x in idxs, mask))    
-
     newSig = sig[mask]
 
     return newSig
-
 
 async def IQ_to_audio(samples, settings): 
     # apply filter to isolate channel we want
@@ -56,21 +53,22 @@ async def IQ_to_audio(samples, settings):
     decodedChunk = settings.get_demod_func()(filtIQ)
 
     # Decimation step so we can listen at correct sample rate
-    rawAudio = nonint_decimate(decodedChunk, 44100, settings.get_samp_rate()) 
+    audio = nonint_decimate(decodedChunk, 44100, settings.get_samp_rate()) 
     
-    procAudio = None
+    # audio += audio.min()
+    # audio /= (0.2 * audio.max())
 
     # Hammer down spikes in recovered waveform
     # Makes up for lower recovery rates by correcting values above cap
     # to be near the values around them
     if settings.doHammer:
-        procAudio = hammer(rawAudio, 0.9)
-    else: 
-        procAudio = rawAudio
+        audio = hammer(audio, settings.hammerCap)
     
-    ## Squelch at some point
+    # Squelch
+    if settings.doSquelch:
+        audio[audio < settings.squelch] = 0
 
-    return procAudio
+    return audio
 
 async def audioStreaming(settings):
 
