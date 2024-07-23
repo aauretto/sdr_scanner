@@ -54,9 +54,9 @@ async def IQ_to_audio(samples, settings):
 
     # Decimation step so we can listen at correct sample rate
     audio = nonint_decimate(decodedChunk, 44100, settings.get_samp_rate()) 
-    
-    # audio += audio.min()
-    # audio /= (0.2 * audio.max())
+
+    settings.rollingThresh.append(audio.max())
+    audio /= 5/4 * np.mean(settings.rollingThresh)
 
     # Hammer down spikes in recovered waveform
     # Makes up for lower recovery rates by correcting values above cap

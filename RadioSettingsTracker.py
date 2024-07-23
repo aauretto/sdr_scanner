@@ -1,12 +1,20 @@
 from rtlsdr import RtlSdr
 import scipy.signal as sp
 import numpy as np
-
+import collections
 
 # Functions that define how we decode data.
 def decode_fm(iqData):
     # obtain the frequency at each point in time
-    return np.diff(np.angle(iqData))
+    freq = np.diff(np.angle(iqData))
+    
+    # Correct for jumping over the -X axis
+    # always take the smaller step in phase between points
+    # otherwise we introduce large jumps in freq where there
+    # are none.
+    freq[freq < -1 * np.pi] += 2 * np.pi
+    freq[freq > np.pi] -= 2 * np.pi
+    return freq
 
 def decode_am(iqData):
     # obtain mag at each point in time 
@@ -28,9 +36,6 @@ class RadioSettingsTracker:
         self.sdr.center_freq = cf
         self.sdr.freq_correction = 60   # PPM
         self.sdr.gain = 'auto'
-        print("gain = ", sdr.get_gain())
-        print("bw = ", sdr.get_bandwidth())
-        print("cf = ", self.get_cf())
 
         self.filtLock = filtLock
         self.demodLock = demodLock
@@ -39,9 +44,9 @@ class RadioSettingsTracker:
         self.filtFMRadio   = sp.firwin(51, 150e3/2, fs=self.sdr.sample_rate)
         self.filtAIRCOM    = sp.firwin(51, 20e3/2, fs=self.sdr.sample_rate)
         self.filtWholeBand = np.ones(51)
-        
-        # Demod order [fmrad, amrad, aircom, auto]
-        self.currDemod = 3
+
+        # Demod order [fmrad, aircom, auto]
+        self.currDemod = 2
 
         self.bw = 150e3
         self.bwStepArr  = [1e3, 5e3, 25e3, 50e3]
@@ -67,6 +72,9 @@ class RadioSettingsTracker:
 
         self.stopSignal = False
 
+        # Circular buffer we use for automatic normalization of signal to about
+        # 0.8 of max
+        self.rollingThresh = collections.deque(maxlen=15)
 
 
     def get_spb(self):
@@ -120,7 +128,7 @@ class RadioSettingsTracker:
 
     def set_filter_from_KB(self, filt):
         with self.filtLock:
-            self.filter = filter
+            self.filter = filt
 
     def get_filter(self):
         with self.filtLock:
@@ -148,7 +156,7 @@ class RadioSettingsTracker:
                 with self.filtLock:
                     self.filter = self.filtFMRadio      
             
-            else: # Band not in KB, Use AM
+            else: # Band not in Known Bands, Use AM on whole spectrum
                 self.demodFunc = decode_am
                 with self.filtLock:
                     self.filter = self.filtWholeBand
@@ -176,7 +184,7 @@ class RadioSettingsTracker:
         newBw = self.bw + self.bwStepArr[self.currBwStep] * dir 
         if (0 < newBw) and (newBw < 1e6):
             self.bw = newBw
-            self.set_filter(51, newBw, 1e6)        
+            self.set_filter(51, newBw, self.sdr.sample_rate)        
 
     def cycle_bw_step(self):
         self.currBwStep = (self.currBwStep + 1) % len(self.bwStepArr)   
