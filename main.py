@@ -14,43 +14,6 @@ import traceback
 def launch_radio_rx(settings):
     asyncio.run(radio_handler(settings))
 
-def change_bw(settings, clk, dt, sw, cyc, lcd):
-    lcd.text("BW:   %4.1f kHz" %(settings.get_bw() / 1e3), 1)
-    lcd.text("Step:%6.3f kHz" %(settings.get_bw_step() / 1e3), 2)
-    turnDir = 0
-    
-    lastCYCstate = 0
-    while(GPIO.input(sw)):
-        time.sleep(0.01)
-        clkState = GPIO.input(clk)
-        dtState  = GPIO.input(dt)
-        cycState = GPIO.input(cyc)
-        
-        if (clkState == 1 and dtState == 1):
-                if(turnDir):
-                    settings.nudge_bw(turnDir)
-                    turnDir = 0
-                    lcd.text("BW:   %4.1f kHz" %(settings.get_bw() / 1e3), 1)
-        elif(not turnDir):
-            if (not clkState and dtState):
-                turnDir = 1
-                print("BW up")
-                
-            elif(clkState and not dtState):
-                turnDir = -1
-                print("BW Down")
-                    
-        # lets us use the cycle step button for bw selection
-        if cycState == 0 and lastCYCstate != 0:
-            settings.cycle_bw_step()
-            lastCYCstate = 0
-            lcd.text("Step:%6.3f kHz" %(settings.get_bw_step() / 1e3), 2)
-        elif(cycState == 1 and lastCYCstate == 0):
-            lastCYCstate = 1
-    
-    lcd.text("%6.3f MHz" %(settings.get_cf()[1] / 1e6), 1)
-    lcd.text("Step:%6.3f MHz" %(settings.get_cf_step() / 1e6), 2)
-
 def main():
 
     filtLock = threading.Lock()
@@ -61,9 +24,6 @@ def main():
     lcd = LCD()
     
     settings = RadioSettingsTracker(sdr, 88.3e6, 2**18, filtLock, demodLock)
-
-    lcd.text("%6.3f MHz" %(settings.get_cf()[1] / 1e6), 1)
-    lcd.text("Step:%6.3f MHz" %(settings.get_cf_step() / 1e6), 2)
 
     threading.Thread(target=launch_radio_rx, args=([settings])).start()
 
@@ -92,10 +52,11 @@ def main():
     # Max title width:         |>_______________|
     menu = [
             LCDMenuItem(title = "Freq Tune",      action = freq_tune_menu),
-            LCDMenuItem(title = "Set Bandwidth",  action = bw_menu),
-            LCDMenuItem(title = "Demod Profile",  action = demod_menu),
+            LCDMenuItem(title = "Volume",         action = vol_menu),
             LCDMenuItem(title = "Set Hammer",     action = hammer_menu),
             LCDMenuItem(title = "Set Squelch",    action = squelch_menu),
+            LCDMenuItem(title = "Demod Profile",  action = demod_menu),
+            LCDMenuItem(title = "Set Bandwidth",  action = bw_menu),
             ]
 
     currItem = 0

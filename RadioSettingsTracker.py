@@ -4,6 +4,7 @@ import numpy as np
 import collections
 
 # Functions that define how we decode data.
+# Should always return audio in range [-1,1]
 def decode_fm(iqData):
     # obtain the frequency at each point in time
     freq = np.diff(np.angle(iqData))
@@ -14,11 +15,21 @@ def decode_fm(iqData):
     # are none.
     freq[freq < -1 * np.pi] += 2 * np.pi
     freq[freq > np.pi] -= 2 * np.pi
-    return freq
+    
+    return freq / np.pi
 
 def decode_am(iqData):
     # obtain mag at each point in time 
-    return np.abs(iqData)
+    raw = np.abs(iqData)
+    AMP = np.mean(raw)
+    PWR = AMP ** 2
+    dB  = 10 * np.log10(PWR)
+    print(f"AMP = {np.mean(raw)}")
+    print(f"PWR = {np.mean(raw) ** 2}")
+    print(f"dB  = {10 * np.log10(np.mean(raw) ** 2)}")
+
+    return raw / raw.max()
+
 
 # Purpose: A threadsafe spot for settings regarding how we rx / process data
 #          is handled 
@@ -27,7 +38,7 @@ class RadioSettingsTracker:
     def __init__(self, sdr, cf, spb, filtLock, demodLock):
         self.sdr = sdr
 
-        self.cfStepArr  = [5e3, 25e3, 1e5, 1e6, 10e6]
+        self.cfStepArr  = [0.332e3, 1e3, 5e3, 25e3, 1e5, 1e6, 10e6]
         self.currCfStep = 2
         self.cf         = cf
 
@@ -58,15 +69,19 @@ class RadioSettingsTracker:
 
         # Audio postprocessing Settings
         self.doHammer = False
-        self.hammerCap = 0.9
+        self.hammer = 0.9
         self.hammerStepArr = [0.01, 0.05, 0.1, 0.25]
         self.hammerIdx = 1
-
 
         self.doSquelch = False
         self.squelch  = 0
         self.squelchStepArr = [0.01, 0.05, 0.1, 0.25]
         self.squelchIdx = 1
+
+        self.doVol = True
+        self.vol  = 0.8
+        self.volStepArr = [0.01, 0.05, 0.1, 0.25]
+        self.volIdx = 1
 
         self.spb = spb
 
@@ -74,7 +89,7 @@ class RadioSettingsTracker:
 
         # Circular buffer we use for automatic normalization of signal to about
         # 0.8 of max
-        self.rollingThresh = collections.deque(maxlen=15)
+        self.rollingThresh = collections.deque(maxlen=40)
 
 
     def get_spb(self):
@@ -191,18 +206,39 @@ class RadioSettingsTracker:
 
     def nudge_squelch(self, dir):
         newSquelch = self.squelch + self.squelchStepArr[self.squelchIdx] * dir
-        if (-6.2 <= newSquelch) and (newSquelch < 6.2):
-            self.squelch = newSquelch
+        if (newSquelch < -1):
+            newSquelch = -1
+        elif (newSquelch > 1):
+            newSquelch = 1
+        self.squelch = newSquelch
+
     def nudge_squelch_step(self, dir):
         newSquelchIdx = self.squelchIdx + dir
         if (0 <= newSquelchIdx and newSquelchIdx < len(self.squelchStepArr)):
             self.squelchIdx = newSquelchIdx
 
     def nudge_hammer(self, dir):
-        newHammer = self.hammerCap + self.hammerStepArr[self.hammerIdx] * dir
-        if (-6.2 <= newHammer) and (newHammer < 6.2):
-            self.hammerCap = newHammer
+        newHammer = self.hammer + self.hammerStepArr[self.hammerIdx] * dir
+        if (newHammer < -1):
+            newHammer = -1
+        elif (newHammer > 1):
+            newHammer = 1
+        self.hammer = newHammer
+
     def nudge_hammer_step(self, dir):
         newHammerIdx = self.hammerIdx + dir
         if (0 <= newHammerIdx and newHammerIdx < len(self.hammerStepArr)):
             self.hammerIdx = newHammerIdx
+
+    def nudge_vol(self, dir):
+        newVol = self.vol + self.volStepArr[self.volIdx] * dir
+        if (newVol < 0):
+            newVol = 0
+        elif (newVol > 1):
+            newVol = 1        
+        self.vol = newVol
+    
+    def nudge_vol_step(self, dir):
+        newVolIdx = self.volIdx + dir
+        if (0 <= newVolIdx and newVolIdx < len(self.volStepArr)):
+            self.volIdx = newVolIdx

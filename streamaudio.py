@@ -52,21 +52,26 @@ async def IQ_to_audio(samples, settings):
     # Decode based where we are tuned to
     decodedChunk = settings.get_demod_func()(filtIQ)
 
-    # Decimation step so we can listen at correct sample rate
+    # Decimation step to get to correct sample rate
     audio = nonint_decimate(decodedChunk, 44100, settings.get_samp_rate()) 
-
-    settings.rollingThresh.append(audio.max())
-    audio /= 5/4 * np.mean(settings.rollingThresh)
 
     # Hammer down spikes in recovered waveform
     # Makes up for lower recovery rates by correcting values above cap
     # to be near the values around them
     if settings.doHammer:
-        audio = hammer(audio, settings.hammerCap)
+        audio = hammer(audio, settings.hammer)
     
     # Squelch
     if settings.doSquelch:
         audio[audio < settings.squelch] = 0
+
+    # Normalize against a rolling max of averages
+    # Smooths the volume changes we experience due to only looking at ~0.25s 
+    # chunks of audio 
+    settings.rollingThresh.append(audio.max())
+    if settings.doVol:
+        audio /= np.mean(settings.rollingThresh)
+        audio *= settings.vol
 
     return audio
 
