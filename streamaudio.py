@@ -50,29 +50,23 @@ async def IQ_to_audio(samples, settings):
     filtIQ = np.convolve(samples, settings.get_filter(), mode='same')
     
     # Decode based where we are tuned to
-    decodedChunk = settings.get_demod_func()(filtIQ)
+    decodedChunk = settings.get_demod_func()(filtIQ, settings)
 
     # Decimation step to get to correct sample rate
-    audio = nonint_decimate(decodedChunk, 44100, settings.get_samp_rate()) 
+    audio = nonint_decimate(decodedChunk, 44100, settings.sdr.sample_rate) 
 
-    # Hammer down spikes in recovered waveform
-    # Makes up for lower recovery rates by correcting values above cap
-    # to be near the values around them
-    if settings.doHammer:
-        audio = hammer(audio, settings.hammer)
-    
-    # Squelch
-    if settings.doSquelch:
-        audio[audio < settings.squelch] = 0
+    # audio = np.convolve(audio, settings.audioFilt, mode="same")
 
-    # Normalize against a rolling max of averages
+    # Normalize against a rolling list of averages
     # Smooths the volume changes we experience due to only looking at ~0.25s 
     # chunks of audio 
-    settings.rollingThresh.append(audio.max())
-    if settings.doVol:
-        audio /= np.mean(settings.rollingThresh)
-        audio *= settings.vol
+    normFact = audio.max()
+    if (normFact):
+        settings.rollingThresh.append(normFact)
 
+    if settings.volMode:
+        audio /= settings.rollingThreshFuncs[settings.volMode](settings.rollingThresh)
+        audio *= settings.vol
     return audio
 
 async def audioStreaming(settings):
@@ -119,18 +113,16 @@ async def radio_handler(settings):
                          channels=1,
                          rate=44100,
                          output=True,
-                         frames_per_buffer=int(settings.get_spb()/1000000 * 44100),
+                         frames_per_buffer=int(settings.get_spb() / settings.sdr.sample_rate * 44100),
                          stream_callback=get_next_chunk
                         )
 
     audioStream.start_stream()
 
-
     async for chunk in audioStreaming(settings):  
         if (settings.stop_called()):
             break
         queue.put_nowait(chunk.astype(np.float32))
-        # print("queue len: ", queue.qsize())
         
     audioStream.close() 
     loop.close() 

@@ -22,22 +22,33 @@ def pack_complex_numbers(complex_array):
     packed_array = (np.array(dovetailed_arr)).astype(np.int16)
     return packed_array
 
-cf = 133.2 * 1e6
+def unpack_complex_numbers(fname):
+    a = np.fromfile(fname, dtype=np.int16) 
+    r = a[0::2].astype(np.float64)
+    i = a[1::2].astype(np.float64)
 
-sdr = RtlSdr()
+    out = r + 1j * i
 
-sdr.sample_rate = 1e6 
-sdr.center_freq = cf
+    return out
 
-sdr.freq_correction = 60 
-sdr.gain = 'auto'
+if __name__ == "__main__":
 
-print("SDR center at: ", sdr.get_center_freq() / 1e6, " MHz")
-print("SDR gain  at: ", sdr.get_gain(), " Db")
+    cf = 124.9 * 1e6
 
-packed_array = pack_complex_numbers(np.array(sdr.read_samples(2**20)))
+    sdr = RtlSdr()
 
-print("writing file")
+    sdr.sample_rate = 1e6 
+    sdr.center_freq = cf
 
-with open("nash_twr.bin", "wb") as file:
-    packed_array.tofile(file)
+    sdr.freq_correction = 60 
+    sdr.gain = 'auto'
+
+    print("SDR center at: ", sdr.get_center_freq() / 1e6, " MHz")
+    print("SDR gain  at: ", sdr.get_gain(), " Db")
+
+    packed_array = pack_complex_numbers(np.array(sdr.read_samples(2**25)))
+
+    print("writing file")
+
+    with open("bos_app.bin", "wb") as file:
+        packed_array.tofile(file)

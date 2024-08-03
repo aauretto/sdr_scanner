@@ -23,7 +23,7 @@ def main():
     
     lcd = LCD()
     
-    settings = RadioSettingsTracker(sdr, 88.3e6, 2**18, filtLock, demodLock)
+    settings = RadioSettingsTracker(sdr, 124.9e6, 2**18, filtLock, demodLock)
 
     threading.Thread(target=launch_radio_rx, args=([settings])).start()
 
@@ -53,10 +53,10 @@ def main():
     menu = [
             LCDMenuItem(title = "Freq Tune",      action = freq_tune_menu),
             LCDMenuItem(title = "Volume",         action = vol_menu),
-            LCDMenuItem(title = "Set Hammer",     action = hammer_menu),
-            LCDMenuItem(title = "Set Squelch",    action = squelch_menu),
             LCDMenuItem(title = "Demod Profile",  action = demod_menu),
             LCDMenuItem(title = "Set Bandwidth",  action = bw_menu),
+            LCDMenuItem(title = "Set Squelch",    action = squelch_menu),
+            LCDMenuItem(title = "Live dB vals",   action = disp_live_dB),
             ]
 
     currItem = 0
@@ -67,6 +67,7 @@ def main():
 
     lcd.text(">"+menu[currItem].title, 1)
     lcd.text(" "+menu[nextItem].title, 2)
+    print(settings.sdr.sample_rate)
 
     try:
         while True:
