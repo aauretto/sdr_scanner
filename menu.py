@@ -385,22 +385,3 @@ def vol_menu(lcd, settings, clk, dt, sw, clk2, dt2, sw2):
                 RturnDir = 1
             elif(RclkState and not RdtState):
                 RturnDir = -1
-
-def disp_live_dB(lcd, settings, clk, dt, sw, clk2, dt2, sw2):
-    lcd.clear()
-
-    LlastSWstate = GPIO.input(sw)
-    #        |________________|
-    lcd.text("Min   Mean   Max", 1)
-    while True:
-        time.sleep(2)
-        LswState  = GPIO.input(sw)
-
-        lcd.text("%4.1f %4.1f %4.1f"% (np.mean(settings.lastDBMin), np.mean(settings.lastDBMean), np.mean(settings.lastDBMax)), 2)      
-
-        # Look for pushing in left rotary encoder, return on release
-        if LswState == 0 and LlastSWstate != 0:
-            return
-            LlastSWstate = 0
-        elif(LswState == 1 and LlastSWstate == 0):
-            LlastSWstate = 1

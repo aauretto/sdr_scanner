@@ -56,7 +56,6 @@ def main():
             LCDMenuItem(title = "Demod Profile",  action = demod_menu),
             LCDMenuItem(title = "Set Bandwidth",  action = bw_menu),
             LCDMenuItem(title = "Set Squelch",    action = squelch_menu),
-            LCDMenuItem(title = "Live dB vals",   action = disp_live_dB),
             ]
 
     currItem = 0

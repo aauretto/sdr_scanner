@@ -24,37 +24,30 @@ def decode_am(iqData, settings):
     amp = np.abs(iqData)
     dB  = 10 * np.log10(amp ** 2)
 
-    # print(f"AMP = {np.mean(amp)}")
-    # print(f"PWR = {np.mean(amp) ** 2}")
     settings.lastDBMean = np.mean(dB)
     if settings.doSquelch:
-        settings.lastDBMax  = np.max(dB)
-        settings.lastDBMin  = np.min(dB)
-        if (np.mean(dB) < settings.squelch):
+        if (settings.lastDBMean < settings.squelch):
             return (np.zeros(amp.size, dtype=np.float32))
-        # amp[dB <= settings.squelch] = 0 
-        # print(np.mean(dB))
     
     normFact = np.max(amp)
     if (normFact):
         return amp / normFact
     return amp 
-
     
-
-
-# Purpose: A threadsafe spot for settings regarding how we rx / process data
-#          is handled 
+# Purpose: Class that bundles settings regarding how we rx / process data
 class RadioSettingsTracker:
 
     def __init__(self, sdr, cf, spb, filtLock, demodLock):
         self.sdr = sdr
 
         self.cfStepCol = 4
-        self.cf         = cf
+        self.cf        = cf
+        self.minCF     = 24e6
+        self.maxCF     = 1766e6
+
 
         # configure device
-        self.sdr.sample_rate = 1e6      # Hz
+        self.sdr.sample_rate = 0.25e6   # Hz
         self.sdr.center_freq = cf
         self.sdr.freq_correction = 60   # PPM
         self.sdr.gain = 'auto'
@@ -72,6 +65,8 @@ class RadioSettingsTracker:
 
         self.bw = 150e3
         self.bwStepCol = 2
+        self.minBW     = 1e3
+        self.maxBW     = 250e3
 
         self.ordemodFunc = False
         self.demodFunc   = lambda x : np.abs(x)
@@ -96,13 +91,9 @@ class RadioSettingsTracker:
 
         self.stopSignal = False
 
-        self.lastDBMean = collections.deque(maxlen=10)
-        self.lastDBMax  = collections.deque(maxlen=10)
-        self.lastDBMin  = collections.deque(maxlen=10)
-
-        self.lastDBMin.append(0)
-        self.lastDBMax.append(0)
-        self.lastDBMean.append(0)
+        self.lastDBMean = 0
+        self.lastDBMax  = 0
+        self.lastDBMin  = 0
 
         self.audioFilt = sp.firwin(38, 10e3, fs=44100, window=("kaiser", 4))
 
@@ -129,10 +120,10 @@ class RadioSettingsTracker:
     
     def nudge_cf(self, dir):
         newCf = self.cf +  np.round(10**(self.cfStepCol + 2)) * dir
-        if newCf < 24e6:
-            newCf = 24e6
-        elif newCf > 1766e6:
-            newCf = 1766e6
+        if newCf < self.minCF:
+            newCf = self.minCF
+        elif newCf > self.maxCF:
+            newCf = self.maxCF
 
         self.cf = newCf
         self.sdr.set_center_freq(self.cf)
@@ -197,10 +188,10 @@ class RadioSettingsTracker:
         
     def nudge_bw(self, dir):
         newBw = self.bw +  np.round(10**(self.bwStepCol)) * dir
-        if newBw <= 1e3:
-            newBw = 1e3
-        elif newBw >= 999e3:
-            newBw = 999e3
+        if newBw <= self.minBW:
+            newBw = self.minBW
+        elif newBw >= self.maxBW:
+            newBw = self.maxBW
 
         self.bw = newBw
         self.set_filter(51, newBw, self.sdr.sample_rate)
